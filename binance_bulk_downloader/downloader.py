@@ -1,6 +1,9 @@
 """
 Binance Bulk Downloader
 """
+# imports for gcs support
+import io
+from google.cloud import storage
 
 # import standard libraries
 import os
@@ -120,6 +123,7 @@ class BinanceBulkDownloader:
 
     def __init__(
         self,
+        gcs_bucket_name: str,
         destination_dir=".",
         data_type="klines",
         data_frequency="1m",
@@ -130,6 +134,7 @@ class BinanceBulkDownloader:
         """
         Initialize BinanceBulkDownloader
 
+        :param gcs_bucket_name: The name of the GCS bucket to upload to.
         :param destination_dir: Destination directory for downloaded files
         :param data_type: Type of data to download (klines, aggTrades, etc.)
         :param data_frequency: Frequency of data to download (1m, 1h, 1d, etc.)
@@ -138,6 +143,12 @@ class BinanceBulkDownloader:
         :param symbols: Optional. Symbol or list of symbols to download (e.g., "BTCUSDT" or ["BTCUSDT", "ETHUSDT"]).
                        If None or empty list is provided, all available symbols will be downloaded.
         """
+        # GCS Initialization
+        self._gcs_bucket_name = gcs_bucket_name
+        self._storage_client = storage.Client()
+        self._gcs_bucket = self._storage_client.bucket(self._gcs_bucket_name)
+
+        # Original parameters
         self._destination_dir = destination_dir
         self._data_type = data_type
         self._data_frequency = data_frequency
@@ -327,6 +338,57 @@ class BinanceBulkDownloader:
 
         return "/".join(url_parts)
 
+    def _download_gcs(self, prefix: str) -> None:
+        """
+        Executes download from Binance, unzips in-memory, and uploads the raw CSV
+        to a landing path in GCS under a 'binance/' prefix.
+        :param prefix: The file path from Binance (e.g., data/spot/daily/trades/BTCUSDT/...).
+        """
+        try:
+            self._check_params()
+
+            # 1. Construct the GCS destination path with the 'binance/' prefix.
+            csv_destination_path = f"binance/{prefix.replace('.zip', '.csv')}"
+
+            # 2. Check if the file already exists in GCS to avoid re-downloading.
+            blob = self._gcs_bucket.blob(csv_destination_path)
+            if blob.exists():
+                return
+
+            # 3. Download the ZIP file into memory.
+            url = f"{self._BINANCE_DATA_DOWNLOAD_BASE_URL}/{prefix}"
+            try:
+                response = requests.get(url, stream=True)
+                response.raise_for_status()
+            except requests.exceptions.RequestException as e:
+                # Handle specific 404 Not Found errors gracefully, as some daily files may not exist.
+                if isinstance(e, requests.exceptions.HTTPError) and e.response.status_code == 404:
+                    return
+                # Raise for all other network or HTTP errors.
+                raise BinanceBulkDownloaderDownloadError(f"Download error for {url}: {str(e)}")
+
+            # 4. Unzip the content in memory.
+            try:
+                with io.BytesIO(response.content) as zip_buffer:
+                    with zipfile.ZipFile(zip_buffer) as zf:
+                        # Handle empty zip files, which can occasionally occur.
+                        if not zf.namelist():
+                            return
+                        csv_filename = zf.namelist()[0]
+                        csv_content = zf.read(csv_filename)
+            except BadZipfile:
+                # If the downloaded file is not a valid zip, skip it.
+                return
+
+            # 5. Upload the extracted CSV content to GCS.
+            blob.upload_from_string(csv_content, content_type="text/csv")
+
+        except Exception as e:
+            # Catch any other unexpected errors.
+            if not isinstance(e, BinanceBulkDownloaderDownloadError):
+                raise BinanceBulkDownloaderDownloadError(f"An unexpected error occurred for prefix {prefix}: {str(e)}")
+            raise
+
     def _download(self, prefix) -> None:
         """
         Execute download
@@ -458,7 +520,7 @@ class BinanceBulkDownloader:
                 with ThreadPoolExecutor() as executor:
                     futures = []
                     for prefix in prefix_chunk:
-                        future = executor.submit(self._download, prefix)
+                        future = executor.submit(self._download_gcs, prefix)
                         futures.append((future, prefix))
 
                     # Update status as files complete
@@ -475,3 +537,22 @@ class BinanceBulkDownloader:
                             live.update(status)
 
                 self.downloaded_list.extend(prefix_chunk)
+
+
+def main():
+    """
+    source venv/bin/activate
+    python -m binance_bulk_downloader.downloader
+    """
+    downloader = BinanceBulkDownloader(
+        gcs_bucket_name="chapaty-dev-raw",  # Your GCS bucket
+        data_frequency="1d",
+        # data_type="trades",
+        asset="spot",
+        timeperiod_per_file="monthly",
+        symbols=["BTCUSDT", "ETHUSDT"],
+    )
+    downloader.run_download()
+
+if __name__ == "__main__":
+    main()
