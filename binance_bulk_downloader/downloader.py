@@ -571,6 +571,7 @@ def main():
     """
     source venv/bin/activate
     python -m binance_bulk_downloader.downloader
+    deactivate
     """
     BUCKET_NAME = os.getenv("BUCKET_NAME")
     if not bucket_name:
