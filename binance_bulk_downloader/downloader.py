@@ -572,8 +572,12 @@ def main():
     source venv/bin/activate
     python -m binance_bulk_downloader.downloader
     """
+    BUCKET_NAME = os.getenv("BUCKET_NAME")
+    if not bucket_name:
+        raise ValueError("❌ Environment variable BUCKET_NAME not set.")
+
     downloader = BinanceBulkDownloader(
-        gcs_bucket_name="chapaty-dev-raw",  # Your GCS bucket
+        gcs_bucket_name=BUCKET_NAME,
         data_frequency="1d",
         filtr="2025-04",
         # data_type="trades",
