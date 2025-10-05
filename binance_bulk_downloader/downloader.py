@@ -1,6 +1,7 @@
 """
 Binance Bulk Downloader
 """
+
 # imports for gcs support
 import io
 from google.cloud import storage
@@ -124,6 +125,7 @@ class BinanceBulkDownloader:
     def __init__(
         self,
         gcs_bucket_name: str,
+        filtr: Optional[str] = None,
         destination_dir=".",
         data_type="klines",
         data_frequency="1m",
@@ -135,18 +137,21 @@ class BinanceBulkDownloader:
         Initialize BinanceBulkDownloader
 
         :param gcs_bucket_name: The name of the GCS bucket to upload to.
+        :param filtr: Optional. A string in "YYYY-MM" format to filter downloads.
         :param destination_dir: Destination directory for downloaded files
         :param data_type: Type of data to download (klines, aggTrades, etc.)
         :param data_frequency: Frequency of data to download (1m, 1h, 1d, etc.)
         :param asset: Type of asset to download (um, cm, spot, option)
         :param timeperiod_per_file: Time period per file (daily, monthly)
         :param symbols: Optional. Symbol or list of symbols to download (e.g., "BTCUSDT" or ["BTCUSDT", "ETHUSDT"]).
-                       If None or empty list is provided, all available symbols will be downloaded.
+                        If None or empty list is provided, all available symbols will be downloaded.
         """
         # GCS Initialization
         self._gcs_bucket_name = gcs_bucket_name
         self._storage_client = storage.Client()
         self._gcs_bucket = self._storage_client.bucket(self._gcs_bucket_name)
+        self._filter = filtr
+
 
         # Original parameters
         self._destination_dir = destination_dir
@@ -362,10 +367,15 @@ class BinanceBulkDownloader:
                 response.raise_for_status()
             except requests.exceptions.RequestException as e:
                 # Handle specific 404 Not Found errors gracefully, as some daily files may not exist.
-                if isinstance(e, requests.exceptions.HTTPError) and e.response.status_code == 404:
+                if (
+                    isinstance(e, requests.exceptions.HTTPError)
+                    and e.response.status_code == 404
+                ):
                     return
                 # Raise for all other network or HTTP errors.
-                raise BinanceBulkDownloaderDownloadError(f"Download error for {url}: {str(e)}")
+                raise BinanceBulkDownloaderDownloadError(
+                    f"Download error for {url}: {str(e)}"
+                )
 
             # 4. Unzip the content in memory.
             try:
@@ -386,7 +396,9 @@ class BinanceBulkDownloader:
         except Exception as e:
             # Catch any other unexpected errors.
             if not isinstance(e, BinanceBulkDownloaderDownloadError):
-                raise BinanceBulkDownloaderDownloadError(f"An unexpected error occurred for prefix {prefix}: {str(e)}")
+                raise BinanceBulkDownloaderDownloadError(
+                    f"An unexpected error occurred for prefix {prefix}: {str(e)}"
+                )
             raise
 
     def _download(self, prefix) -> None:
@@ -498,6 +510,22 @@ class BinanceBulkDownloader:
         else:
             file_list = self._get_file_list_from_s3_bucket(self._build_prefix())
 
+        if self._filter:
+            self.console.print(
+                f"Applying filter for month: [yellow]{self._filter}[/yellow]"
+            )
+            original_count = len(file_list)
+            file_list = [f for f in file_list if self._filter in f]
+            self.console.print(
+                f"Filtered file list from {original_count} to {len(file_list)} files."
+            )
+
+        if not file_list:
+            self.console.print(
+                "[bold red]No files found matching the criteria. Exiting.[/bold red]"
+            )
+            return
+
         # Filter by data frequency only if not already filtered by prefix
         if (
             self._data_type in self._DATA_FREQUENCY_REQUIRED_BY_DATA_TYPE
@@ -547,12 +575,14 @@ def main():
     downloader = BinanceBulkDownloader(
         gcs_bucket_name="chapaty-dev-raw",  # Your GCS bucket
         data_frequency="1d",
+        filtr="2025-04",
         # data_type="trades",
         asset="spot",
         timeperiod_per_file="monthly",
         symbols=["BTCUSDT", "ETHUSDT"],
     )
     downloader.run_download()
+
 
 if __name__ == "__main__":
     main()
