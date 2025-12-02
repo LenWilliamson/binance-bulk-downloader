@@ -572,11 +572,6 @@ def main():
     source venv/bin/activate
     python -m binance_bulk_downloader.downloader
     deactivate
-
-    docker run \
-        -e BINANCE_BULK_DOWNLOADER_YYYY-MM_FILTER="2023-01" \
-        -e BINANCE_BULK_DOWNLOADER_DATA_TYPE="trades" \
-        binance-downloader
     """
     bucket_name = os.getenv("GCP_BUCKET_NAME")
     if not bucket_name:
