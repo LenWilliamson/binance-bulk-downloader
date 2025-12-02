@@ -578,6 +578,8 @@ def main():
         raise ValueError("Environment variable GCP_BUCKET_NAME not set.")
 
     filtr = os.getenv("BINANCE_BULK_DOWNLOADER_YYYY-MM_FILTER")
+    if not filtr:
+        filtr = None
     data_type = os.getenv("BINANCE_BULK_DOWNLOADER_DATA_TYPE", "klines")
 
     data_frequencies = [

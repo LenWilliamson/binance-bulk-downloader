@@ -1,0 +1,28 @@
+# syntax=docker/dockerfile:1
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# 1. Install CA Certificates
+# CRITICAL: Required for 'requests' to talk to Binance and 'google-cloud-storage' to talk to GCP.
+RUN apt-get update && \
+    apt-get install -y ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+# 2. Install Python Dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 3. Copy Application Code
+# Copies the current directory (including the binance_bulk_downloader package)
+COPY . .
+
+# 4. Set Defaults
+ENV GCP_BUCKET_NAME="chapaty-prod-raw"
+# Default filter can be empty (downloads everything) or overridden at runtime
+ENV BINANCE_BULK_DOWNLOADER_YYYY-MM_FILTER="" 
+ENV BINANCE_BULK_DOWNLOADER_DATA_TYPE="klines"
+
+# 5. Run as Module
+CMD ["python", "-m", "binance_bulk_downloader.downloader"]
