@@ -152,7 +152,6 @@ class BinanceBulkDownloader:
         self._gcs_bucket = self._storage_client.bucket(self._gcs_bucket_name)
         self._filter = filtr
 
-
         # Original parameters
         self._destination_dir = destination_dir
         self._data_type = data_type
@@ -372,10 +371,7 @@ class BinanceBulkDownloader:
                     and e.response.status_code == 404
                 ):
                     return
-                # Raise for all other network or HTTP errors.
-                raise BinanceBulkDownloaderDownloadError(
-                    f"Download error for {url}: {str(e)}"
-                )
+                raise BinanceBulkDownloaderDownloadError(f"Download error: {str(e)}")
 
             # 4. Unzip the content in memory.
             try:
@@ -385,20 +381,22 @@ class BinanceBulkDownloader:
                         if not zf.namelist():
                             return
                         csv_filename = zf.namelist()[0]
-                        csv_content = zf.read(csv_filename)
+
+                        # Use zf.open() to get a file-like stream of the CSV
+                        with zf.open(csv_filename) as csv_stream:
+                            # STREAM to GCS: upload_from_file reads the stream in chunks
+                            # rewind=False is REQUIRED because ZipExtFile is not seekable
+                            blob.upload_from_file(
+                                csv_stream, content_type="text/csv", rewind=False
+                            )
             except BadZipfile:
                 # If the downloaded file is not a valid zip, skip it.
                 return
 
-            # 5. Upload the extracted CSV content to GCS.
-            blob.upload_from_string(csv_content, content_type="text/csv")
-
         except Exception as e:
             # Catch any other unexpected errors.
             if not isinstance(e, BinanceBulkDownloaderDownloadError):
-                raise BinanceBulkDownloaderDownloadError(
-                    f"An unexpected error occurred for prefix {prefix}: {str(e)}"
-                )
+                raise BinanceBulkDownloaderDownloadError(f"Unexpected error: {str(e)}")
             raise
 
     def _download(self, prefix) -> None:
@@ -624,24 +622,23 @@ def main():
             downloader.run_download()
     else:
         downloader = BinanceBulkDownloader(
-                gcs_bucket_name=bucket_name,
-                filtr=filtr,
-                data_type=data_type,
-                asset="spot",
-                timeperiod_per_file="monthly",
-                symbols=[
-                    "BTCUSDT",
-                    "BNBUSDT",
-                    "ETHUSDT",
-                    "SOLUSDT",
-                    "XRPUSDT",
-                    "TRXUSDT",
-                    "ADAUSDT",
-                    "XLMUSDT",
-                ],
-            )
+            gcs_bucket_name=bucket_name,
+            filtr=filtr,
+            data_type=data_type,
+            asset="spot",
+            timeperiod_per_file="monthly",
+            symbols=[
+                "BTCUSDT",
+                "BNBUSDT",
+                "ETHUSDT",
+                "SOLUSDT",
+                "XRPUSDT",
+                "TRXUSDT",
+                "ADAUSDT",
+                "XLMUSDT",
+            ],
+        )
         downloader.run_download()
-
 
 
 if __name__ == "__main__":
