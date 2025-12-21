@@ -582,45 +582,66 @@ def main():
         filtr = None
     data_type = os.getenv("BINANCE_BULK_DOWNLOADER_DATA_TYPE", "klines")
 
-    data_frequencies = [
-        "1s",
-        "1m",
-        "3m",
-        "5m",
-        "15m",
-        "30m",
-        "1h",
-        "2h",
-        "4h",
-        "6h",
-        "8h",
-        "12h",
-        "1d",
-        "3d",
-        "1w",
-        "1mo",
-    ]
+    if data_type in BinanceBulkDownloader._DATA_FREQUENCY_REQUIRED_BY_DATA_TYPE:
+        data_frequencies = [
+            "1s",
+            "1m",
+            "3m",
+            "5m",
+            "15m",
+            "30m",
+            "1h",
+            "2h",
+            "4h",
+            "6h",
+            "8h",
+            "12h",
+            "1d",
+            "3d",
+            "1w",
+            "1mo",
+        ]
 
-    for data_frequency in data_frequencies:
+        for data_frequency in data_frequencies:
+            downloader = BinanceBulkDownloader(
+                gcs_bucket_name=bucket_name,
+                data_frequency=data_frequency,
+                filtr=filtr,
+                data_type=data_type,
+                asset="spot",
+                timeperiod_per_file="monthly",
+                symbols=[
+                    "BTCUSDT",
+                    "BNBUSDT",
+                    "ETHUSDT",
+                    "SOLUSDT",
+                    "XRPUSDT",
+                    "TRXUSDT",
+                    "ADAUSDT",
+                    "XLMUSDT",
+                ],
+            )
+            downloader.run_download()
+    else:
         downloader = BinanceBulkDownloader(
-            gcs_bucket_name=bucket_name,
-            data_frequency=data_frequency,
-            filtr=filtr,
-            data_type=data_type,
-            asset="spot",
-            timeperiod_per_file="monthly",
-            symbols=[
-                "BTCUSDT",
-                "BNBUSDT",
-                "ETHUSDT",
-                "SOLUSDT",
-                "XRPUSDT",
-                "TRXUSDT",
-                "ADAUSDT",
-                "XLMUSDT",
-            ],
-        )
+                gcs_bucket_name=bucket_name,
+                filtr=filtr,
+                data_type=data_type,
+                asset="spot",
+                timeperiod_per_file="monthly",
+                symbols=[
+                    "BTCUSDT",
+                    "BNBUSDT",
+                    "ETHUSDT",
+                    "SOLUSDT",
+                    "XRPUSDT",
+                    "TRXUSDT",
+                    "ADAUSDT",
+                    "XLMUSDT",
+                ],
+            )
         downloader.run_download()
+
 
 
 if __name__ == "__main__":
