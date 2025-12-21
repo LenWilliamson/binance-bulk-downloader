@@ -545,7 +545,7 @@ class BinanceBulkDownloader:
 
             # Download files in chunks
             for chunk_index, prefix_chunk in enumerate(chunks, 1):
-                with ThreadPoolExecutor() as executor:
+                with ThreadPoolExecutor(max_workers=8) as executor:
                     futures = []
                     for prefix in prefix_chunk:
                         future = executor.submit(self._download_gcs, prefix)
