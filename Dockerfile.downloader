@@ -21,7 +21,7 @@ COPY . .
 # 4. Set Defaults
 ENV GCP_BUCKET_NAME="chapaty-prod-raw"
 # Default filter can be empty (downloads everything) or overridden at runtime
-ENV BINANCE_BULK_DOWNLOADER_YYYY-MM_FILTER="" 
+ENV BINANCE_BULK_DOWNLOADER_YYYY_MM_FILTER="" 
 ENV BINANCE_BULK_DOWNLOADER_DATA_TYPE="klines"
 
 # 5. Run as Module

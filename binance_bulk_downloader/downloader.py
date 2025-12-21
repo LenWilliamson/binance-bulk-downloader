@@ -577,7 +577,7 @@ def main():
     if not bucket_name:
         raise ValueError("Environment variable GCP_BUCKET_NAME not set.")
 
-    filtr = os.getenv("BINANCE_BULK_DOWNLOADER_YYYY-MM_FILTER")
+    filtr = os.getenv("BINANCE_BULK_DOWNLOADER_YYYY_MM_FILTER")
     if not filtr:
         filtr = None
     data_type = os.getenv("BINANCE_BULK_DOWNLOADER_DATA_TYPE", "klines")
